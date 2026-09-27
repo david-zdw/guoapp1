@@ -246,12 +246,29 @@ func (client *yeguoAPIClient) configuration(ctx context.Context) (*yeguoAccess, 
 
 func (client *yeguoAPIClient) requestClient() *http.Client {
 	client.httpOnce.Do(func() {
+		// 直接复用 downloader 的 transport。
+		//
+		// 它现在是「浏览器指纹 + HTTP/3 竞速」通道，且已覆盖全部站源，
+		// 野果的 POST 接口也能借它走 QUIC。实测 yeguodj.com 的 TCP 在部分
+		// 线路（尤其是 IPv6）一发 ClientHello 就被 RST：
+		//     read tcp [2409:...]->[2606:4700:...]:443: connection reset by peer
+		// 而同域名 HTTP/3 返回 200。
+		//
+		// 原逻辑在 transport 是 *huangguoBrowserTransport 时反而「绕开」它、
+		// 自建一个普通 http.Transport，导致野果永远走 TCP，始终连不上。
 		if client.downloader.client != nil && client.downloader.client.Transport != nil {
-			if _, production := client.downloader.client.Transport.(*huangguoBrowserTransport); !production {
-				client.httpClient = &http.Client{Transport: client.downloader.client.Transport}
-				return
+			client.httpClient = &http.Client{
+				Transport: client.downloader.client.Transport,
+				CheckRedirect: func(request *http.Request, via []*http.Request) error {
+					if len(via) >= 10 {
+						return errors.New("野果接口重定向次数过多")
+					}
+					return nil
+				},
 			}
+			return
 		}
+		// 兜底：downloader 没有可用 transport 时，按原样自建。
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 		if client.downloader.cfg.InsecureTLS {
