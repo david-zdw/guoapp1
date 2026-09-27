@@ -415,21 +415,26 @@ func (client *yeguoAPIClient) discoverConfiguration(ctx context.Context) (*yeguo
 			sites = append(sites, site)
 		}
 	}
+	// 先抓线路发现页 ygdj7.com —— 它给出的才是「当前」可用线路。
+	//
+	// 硬编码入口 analyze.buxefaex.cc 会失效，而 HTTP/3 竞速对它的失败要等满
+	// 10 秒才返回，再乘上 fetchProviderText 的 3 次重试就是 30 秒，直接吃掉
+	// 整个 25 秒预算 —— 发现出来的活线路根本没机会尝试（实测报错：
+	// 「野果线路暂不可用 context deadline exceeded」）。
+	for _, site := range client.discoverTransitSites(ctx) {
+		add(site)
+	}
+	// 兜底：配置入口与硬编码入口（add 内部已按 host 去重）
 	add(client.site)
 	add(yeguoBaseURL)
+
 	var lastErr error
-	for index := 0; index < len(sites); index++ {
-		site := sites[index]
+	for _, site := range sites {
 		access, err := client.discoverConfigurationAt(ctx, site)
 		if err == nil {
 			return access, nil
 		}
 		lastErr = err
-		if index == 0 {
-			for _, site := range client.discoverTransitSites(ctx) {
-				add(site)
-			}
-		}
 	}
 	return nil, errors.Join(errors.New("野果线路暂不可用，请稍后重试"), lastErr)
 }

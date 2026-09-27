@@ -29,7 +29,7 @@ type huangguoBrowserTransport struct {
 	record    func(diagnosticEvent)
 	mu        sync.Mutex
 	clients   map[string]browserHTTPClient
-	newClient func(string) (browserHTTPClient, error)
+	newClient func(string, bool) (browserHTTPClient, error)
 }
 
 func newHuangguoBrowserTransport(base http.RoundTripper, downloader *Downloader) *huangguoBrowserTransport {
@@ -91,14 +91,41 @@ func isHuangguoAIBrowserHost(host string) bool {
 	return false
 }
 
-func (transport *huangguoBrowserTransport) createClient(proxy string) (browserHTTPClient, error) {
+// tcpOnlyHosts: 实测「走 HTTP/3 反而更差」的域名，强制走 TCP。
+//
+//   ygdj7.com            线路发现页。HTTP/3 先返回 502，成功也要 5.8 秒；TCP 只要 0.4 秒。
+//   analyze.buxefaex.cc  硬编码入口。HTTP/3 握手 CRYPTO_ERROR，且竞速不会回退到
+//                        TCP，只能干等满 10 秒上限。
+//   delta.ygrwdsgt.cc    备用线路。HTTP/3 直接超时。
+//
+// 注意：这里只放「已实测 HTTP/3 更差」的域名。
+// 其余一律保持 HTTP/3 竞速 —— 部分线路只封 TCP 的 SNI，必须靠 QUIC 才能通：
+//   ediayikma.cc(黄果) / dsd.com.se(帝果) / yeguodj.com(野果 API) / tideember.cc(黄豆)
+// 尤其 yeguodj.com 是野果接口域名，走 TCP 会 connection reset，绝不能加进来。
+var tcpOnlyHosts = []string{
+	"ygdj7.com",
+	"analyze.buxefaex.cc",
+	"delta.ygrwdsgt.cc",
+}
+
+func tcpOnlyHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+	for _, base := range tcpOnlyHosts {
+		if host == base || strings.HasSuffix(host, "."+base) {
+			return true
+		}
+	}
+	return false
+}
+
+func (transport *huangguoBrowserTransport) createClient(proxy string, racing bool) (browserHTTPClient, error) {
 	idleTimeout := 90 * time.Second
 	options := []tlsclient.HttpClientOption{
 		tlsclient.WithClientProfile(profiles.Chrome_150),
 		tlsclient.WithRandomTLSExtensionOrder(),
-		// 打开 HTTP/3(QUIC)：与 HTTP/2 并行竞速，自动记住每个域名可用的协议。
-		// 部分线路只封 TCP 的 SNI，QUIC(UDP 443) 不受影响。
-		tlsclient.WithProtocolRacing(),
 		tlsclient.WithNotFollowRedirects(),
 		tlsclient.WithTimeoutSeconds(45),
 		tlsclient.WithProxyUrl(proxy),
@@ -107,6 +134,14 @@ func (transport *huangguoBrowserTransport) createClient(proxy string) (browserHT
 			IdleConnTimeout: &idleTimeout, MaxIdleConns: 8, MaxIdleConnsPerHost: 4,
 			MaxResponseHeaderBytes: 1 << 20,
 		}),
+	}
+	if racing {
+		// HTTP/3(QUIC) 与 HTTP/2 并行竞速，自动记住每个域名可用的协议。
+		// 部分线路只封 TCP 的 SNI，必须靠 QUIC 才能通。
+		options = append(options, tlsclient.WithProtocolRacing())
+	} else {
+		// 该域名实测走 HTTP/3 更差（502 / 握手失败 / 超时），强制 TCP。
+		options = append(options, tlsclient.WithDisableHttp3())
 	}
 	if transport.insecure {
 		options = append(options, tlsclient.WithInsecureSkipVerify())
@@ -125,11 +160,16 @@ func (transport *huangguoBrowserTransport) client(request *http.Request) (browse
 	if proxy != nil {
 		proxyURL = proxy.String()
 	}
-	key := request.URL.Scheme + "://" + strings.ToLower(request.URL.Host) + "|" + proxyURL
+	racing := !tcpOnlyHost(request.URL.Hostname())
+	mode := "|h3"
+	if !racing {
+		mode = "|tcp"
+	}
+	key := request.URL.Scheme + "://" + strings.ToLower(request.URL.Host) + "|" + proxyURL + mode
 	if client := transport.clients[key]; client != nil {
 		return client, nil
 	}
-	client, err := transport.newClient(proxyURL)
+	client, err := transport.newClient(proxyURL, !tcpOnlyHost(request.URL.Hostname()))
 	if err != nil {
 		return nil, err
 	}
