@@ -103,9 +103,18 @@ func isHuangguoAIBrowserHost(host string) bool {
 //   ediayikma.cc(黄果) / dsd.com.se(帝果) / yeguodj.com(野果 API) / tideember.cc(黄豆)
 // 尤其 yeguodj.com 是野果接口域名，走 TCP 会 connection reset，绝不能加进来。
 var tcpOnlyHosts = []string{
+	// 线路发现页：HTTP/3 先返回 502、成功也要 5.8s；TCP 只要 0.4-1.3s
 	"ygdj7.com",
-	"analyze.buxefaex.cc",
-	"delta.ygrwdsgt.cc",
+	// 野果入口/线路家族：实测 HTTP/3 全部超时（每个白等满 10s 竞速上限），
+	// TCP 正常（探针实测 analyze.buxefaex.cc 走 TCP 只要 2.1-3.6s）。
+	//
+	// 注意 fzchosdi.cc 尤其重要：ygdj7.com 发现出来的 4 条线路
+	// (analyze/ability/abandon/able.fzchosdi.cc) 全在这个域名下，
+	// 走 HTTP/3 每条要 10s，4 条就是 40s，直接撑爆 25s 预算。
+	"buxefaex.cc",
+	"fzchosdi.cc",
+	// 备用线路，HTTP/3 直接超时
+	"ygrwdsgt.cc",
 }
 
 func tcpOnlyHost(host string) bool {

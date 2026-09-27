@@ -421,12 +421,15 @@ func (client *yeguoAPIClient) discoverConfiguration(ctx context.Context) (*yeguo
 	// 10 秒才返回，再乘上 fetchProviderText 的 3 次重试就是 30 秒，直接吃掉
 	// 整个 25 秒预算 —— 发现出来的活线路根本没机会尝试（实测报错：
 	// 「野果线路暂不可用 context deadline exceeded」）。
+	// 配置入口先试：探针实测 analyze.buxefaex.cc 走 TCP 只要 2.1-3.6 秒就能成，
+	// 比逐个试发现出来的线路更快（后者可能整批不可用）。
+	add(client.site)
+	add(yeguoBaseURL)
+	// 再由线路发现页补充「当前」线路作为候选（add 内部按 host 去重）。
+	// 放在后面是因为它可能一次给出好几条，逐条试会消耗预算。
 	for _, site := range client.discoverTransitSites(ctx) {
 		add(site)
 	}
-	// 兜底：配置入口与硬编码入口（add 内部已按 host 去重）
-	add(client.site)
-	add(yeguoBaseURL)
 
 	var lastErr error
 	for _, site := range sites {
