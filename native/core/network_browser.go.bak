@@ -43,38 +43,10 @@ func newHuangguoBrowserTransport(base http.RoundTripper, downloader *Downloader)
 	return transport
 }
 
-// 需要走「浏览器指纹 + HTTP/3」的域名：
-//  - 黄果视频（原有）
-//  - 黄果网页及其全部轮换域名（QUIC 实测可用，TCP 被 SNI 阻断）
 func (transport *huangguoBrowserTransport) matches(request *http.Request) bool {
-	if request.Method != http.MethodGet && request.Method != http.MethodHead {
-		return false
-	}
-	if request.URL.Scheme != "http" && request.URL.Scheme != "https" {
-		return false
-	}
-	if strings.EqualFold(request.URL.Host, transport.host) ||
-		strings.EqualFold(request.URL.Hostname(), "huangguo.video") {
-		return true
-	}
-	return isHuangguoAIBrowserHost(request.URL.Hostname())
-}
-
-// 黄果网页的域名集合（主域 + 所有已知轮换批次，含随机子域名）
-func isHuangguoAIBrowserHost(host string) bool {
-	host = strings.ToLower(strings.TrimSpace(host))
-	if host == "" {
-		return false
-	}
-	if host == "huangguoai.com" || host == "www.huangguoai.com" {
-		return true
-	}
-	for _, base := range huangguoAIMirrorBases {
-		if host == base || strings.HasSuffix(host, "."+base) {
-			return true
-		}
-	}
-	return false
+	return (request.Method == http.MethodGet || request.Method == http.MethodHead) &&
+		(request.URL.Scheme == "http" || request.URL.Scheme == "https") &&
+		(strings.EqualFold(request.URL.Host, transport.host) || strings.EqualFold(request.URL.Hostname(), "huangguo.video"))
 }
 
 func (transport *huangguoBrowserTransport) createClient(proxy string) (browserHTTPClient, error) {
@@ -82,9 +54,7 @@ func (transport *huangguoBrowserTransport) createClient(proxy string) (browserHT
 	options := []tlsclient.HttpClientOption{
 		tlsclient.WithClientProfile(profiles.Chrome_150),
 		tlsclient.WithRandomTLSExtensionOrder(),
-		// 打开 HTTP/3(QUIC)：与 HTTP/2 并行竞速，自动记住每个域名可用的协议。
-		// 部分线路只封 TCP 的 SNI，QUIC(UDP 443) 不受影响。
-		tlsclient.WithProtocolRacing(),
+		tlsclient.WithDisableHttp3(),
 		tlsclient.WithNotFollowRedirects(),
 		tlsclient.WithTimeoutSeconds(45),
 		tlsclient.WithProxyUrl(proxy),

@@ -38,26 +38,7 @@ const (
 
 var (
 	huangguoAIBaseURL     = "https://huangguoai.com"
-	// 站点用「随机子域名 + 轮换主域」规避封锁，这里列出所有已知批次。
-	huangguoAIMirrorBases = []string{
-		"ediayikma.cc", "agdkczeyx.cc", "ixuvadjtv.cc", "bskpidpu.com",
-		"enetlmlq.cc", "juatinpqz.com", "mvbessfgf.cc", "mbdjkget.cc",
-	}
-
-	// 这些域名按「QUIC(UDP 443) 实测可用」排序；部分线路只封 TCP 的 SNI。
-	huangguoAIBaseMirrors = []string{
-		"https://huangguoai.com",
-		"https://thu.ediayikma.cc",
-		"https://thu.agdkczeyx.cc",
-		"https://thu.ixuvadjtv.cc",
-		"https://thu.bskpidpu.com",
-		"https://thu.enetlmlq.cc",
-		"https://thu.juatinpqz.com",
-		"https://thu.mvbessfgf.cc",
-		"https://ttvoij.ediayikma.cc",
-		"https://pku.ediayikma.cc",
-		"https://fdu.ediayikma.cc",
-	}
+	huangguoAIBaseMirrors = []string{"https://huangguoai.com", "https://ttvoij.ediayikma.cc", "https://thu.ediayikma.cc", "https://pku.ediayikma.cc", "https://fdu.ediayikma.cc", "https://thu.agdkczeyx.cc"}
 	huangguoVideoBaseURL  = "https://huangguo.video"
 
 	huangguoAISlugs     = []string{"recommend", "newest", "ai-duanju", "ai-manju", "ai-huanlian", "ai-mogai", "ranks/hot"}
@@ -526,10 +507,7 @@ func generatedHuangguoAIMirrors(seed string, n int) []string {
 			continue
 		}
 		seen[sub] = true
-		// 随机子域名覆盖当前所有批次（站点用随机子域名轮换规避封锁）
-		for _, base := range huangguoAIMirrorBases {
-			out = append(out, "https://"+sub+"."+base)
-		}
+		out = append(out, "https://"+sub+".ediayikma.cc")
 	}
 	return out
 }
