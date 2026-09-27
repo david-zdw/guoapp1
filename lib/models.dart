@@ -39,16 +39,7 @@ class SourceSite {
   );
 
   /// 默认可见的站源：红果、韩小圈、鬼片网、青空次元。
-  static const primaryValues = [
-    hongguo,
-    hanxiaoquan,
-    guipian,
-    sorani,
-    // 黄果系：默认可见（原来在 restrictedValues 里，没密码锁入口就打不开）
-    SourceSite('huangguo-video', '黄果视频', '视频剧集'),
-    SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
-    SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
-  ];
+  static const primaryValues = [hongguo, hanxiaoquan, guipian, sorani];
 
   /// 敏感站源：默认隐藏，输入解锁密码后才显示。
   static const restrictedValues = [
@@ -56,6 +47,10 @@ class SourceSite {
     SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧'),
     SourceSite('yeguo', '野果', '分类短剧 · 在线搜索'),
     dsd,
+    // 黄果系：默认隐藏，在「站源管理」右上角 🔒 里设密码后解锁显示
+    SourceSite('huangguo-video', '黄果视频', '视频剧集'),
+    SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
+    SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
   ];
   static const knownValues = [...primaryValues, ...restrictedValues];
   static const allValues = [...primaryValues, ...restrictedValues];

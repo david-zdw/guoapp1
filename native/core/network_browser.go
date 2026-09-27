@@ -55,9 +55,9 @@ func newHuangguoBrowserTransport(base http.RoundTripper, downloader *Downloader)
 //   WithProtocolRacing() 会并行竞速并记住每个域名可用的协议，
 //   所以两种情况的域名都能覆盖。
 func (transport *huangguoBrowserTransport) matches(request *http.Request) bool {
-	if request.Method != http.MethodGet && request.Method != http.MethodHead {
-		return false
-	}
+	// 注意：不能只放行 GET/HEAD。野果等站源的接口用的是 POST
+	// (例如 https://www.yeguodj.com/api.php/api/theater/exploreList)，
+	// 之前限制方法导致这些请求绕过竞速通道、走默认 TCP，被 RST。
 	if request.URL.Scheme != "http" && request.URL.Scheme != "https" {
 		return false
 	}
