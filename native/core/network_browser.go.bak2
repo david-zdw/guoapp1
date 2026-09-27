@@ -43,17 +43,9 @@ func newHuangguoBrowserTransport(base http.RoundTripper, downloader *Downloader)
 	return transport
 }
 
-// 需要走「浏览器指纹 + HTTP/3 竞速」的请求。
-//
-// 为什么所有站源都要走：
-//   部分线路对 IPv4/IPv6 的 TCP 做 SNI 阻断（一发 ClientHello 就被 RST），
-//   但同一域名的 QUIC(UDP 443) 不受影响。实测：
-//     www.dsd.com.se  TCP=000  HTTP/3=200
-//     yeguodj.com     TCP=000  HTTP/3=200
-//     ygdj7.com       TCP=200  HTTP/3=200
-//     analyze.buxefaex.cc  TCP=200  HTTP/3=握手失败
-//   WithProtocolRacing() 会并行竞速并记住每个域名可用的协议，
-//   所以两种情况的域名都能覆盖。
+// 需要走「浏览器指纹 + HTTP/3」的域名：
+//  - 黄果视频（原有）
+//  - 黄果网页及其全部轮换域名（QUIC 实测可用，TCP 被 SNI 阻断）
 func (transport *huangguoBrowserTransport) matches(request *http.Request) bool {
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		return false
@@ -61,17 +53,11 @@ func (transport *huangguoBrowserTransport) matches(request *http.Request) bool {
 	if request.URL.Scheme != "http" && request.URL.Scheme != "https" {
 		return false
 	}
-	// 黄果视频（原逻辑保留）
 	if strings.EqualFold(request.URL.Host, transport.host) ||
 		strings.EqualFold(request.URL.Hostname(), "huangguo.video") {
 		return true
 	}
-	// 黄果网页及全部轮换域名
-	if isHuangguoAIBrowserHost(request.URL.Hostname()) {
-		return true
-	}
-	// 其它所有已登记的站源（野果、帝果、黄豆、红果、韩小圈、鬼片、青空、剧果…）
-	return providerSourceForURL(request.URL.String()) != ""
+	return isHuangguoAIBrowserHost(request.URL.Hostname())
 }
 
 // 黄果网页的域名集合（主域 + 所有已知轮换批次，含随机子域名）
