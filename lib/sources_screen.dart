@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'core_bridge.dart';
 import 'local_store.dart';
+import 'source_gate_dialog.dart';
 import 'models.dart';
 import 'source_status.dart';
 
@@ -174,7 +175,17 @@ class _SourcesScreenState extends State<SourcesScreen> {
           ? viewPaddingBottom
           : paddingBottom;
       return Scaffold(
-        appBar: AppBar(title: const Text('站源管理')),
+        appBar: AppBar(
+          title: const Text('站源管理'),
+          actions: [
+            // 密码锁入口（原来只能靠连点「最近观看」6 次触发，藏得太深）
+            IconButton(
+              tooltip: '站源密码锁',
+              icon: const Icon(Icons.lock_outline),
+              onPressed: () => showSourceGateDialog(context, widget.store),
+            ),
+          ],
+        ),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 960),

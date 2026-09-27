@@ -162,7 +162,10 @@ class LocalStore extends ChangeNotifier {
         RegExp(r'^[a-f0-9]{32}$').hasMatch(salt) &&
         RegExp(r'^[a-f0-9]{64}$').hasMatch(hash);
     _gateEnabled = valid;
-    _gateOff = !valid && off;
+    // 未启用密码锁时直接显示全部站源（原来要求 sourceGateOff 也为 true，
+    // 但那个标记只有用户主动点过「不使用密码」才会写入，
+    // 导致没设密码的用户永远看不到敏感站源，也没有入口可打开）。
+    _gateOff = !valid;
     _gateSalt = valid ? salt : '';
     _gateHash = valid ? hash : '';
     _sourcesUnlocked = false;
